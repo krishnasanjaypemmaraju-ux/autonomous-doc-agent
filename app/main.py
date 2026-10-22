@@ -20,7 +20,7 @@ from app.guardrails import GuardrailViolation
 from app.llm import ChatProvider, LLMClient, LLMUnavailableError
 from app.llm.factory import build_providers, build_routes
 from app.orchestrator import DocumentAgent
-from app.schemas import AgentRequest, AgentResponse, ErrorResponse
+from app.schemas import AgentRequest, AgentResponse, ErrorResponse, HealthResponse
 
 DOCX_MEDIA_TYPE = "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
 _SAFE_FILENAME = re.compile(r"^[a-z0-9_]{1,80}\.docx$")
@@ -85,11 +85,12 @@ def create_app(settings: Settings | None = None,
     async def root():
         return RedirectResponse("/docs")
 
-    @app.get("/health", tags=["system"])
-    async def health(request: Request):
+    @app.get("/health", tags=["system"], response_model=HealthResponse,
+             summary="Server status and which model each agent uses")
+    async def health(request: Request) -> HealthResponse:
         llm: LLMClient = request.app.state.llm
-        return {"status": "ok", "version": __version__,
-                "llm_chain": llm.provider_names, "agent_models": llm.describe_routes()}
+        return HealthResponse(version=__version__, llm_chain=llm.provider_names,
+                              agent_models=llm.describe_routes())
 
     @app.post(
         "/agent",
@@ -118,7 +119,10 @@ def create_app(settings: Settings | None = None,
         return result
 
     @app.get("/documents/{filename}", tags=["agent"], name="download_document",
-             response_class=FileResponse)
+             response_class=FileResponse, summary="Download a generated Word document",
+             responses={200: {"content": {DOCX_MEDIA_TYPE: {}},
+                              "description": "The .docx file"},
+                        404: {"description": "Document not found"}})
     async def download_document(filename: str):
         path = settings.output_dir / filename
         if not _SAFE_FILENAME.match(filename) or not path.is_file():

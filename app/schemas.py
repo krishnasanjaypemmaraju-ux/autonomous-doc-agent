@@ -341,6 +341,15 @@ class AgentResponse(BaseModel):
     duration_ms: int
 
 
+class HealthResponse(BaseModel):
+    status: Literal["ok"] = "ok"
+    version: str
+    llm_chain: list[str] = Field(description="All configured models, in fallback order")
+    agent_models: dict[str, list[str]] = Field(
+        description="Preferred models per agent (writers are load-balanced across theirs)"
+    )
+
+
 class ErrorResponse(BaseModel):
     error: str
     detail: str
