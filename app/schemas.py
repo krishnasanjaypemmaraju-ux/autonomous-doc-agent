@@ -68,6 +68,50 @@ def invalid_dates(text: str) -> list[str]:
     return bad
 
 
+_ONE_NUMBER = re.compile(
+    r"^[^\d]*?(\d[\d,]*(?:\.\d+)?)\s*(k|lakh|lakhs|l)?\b[^\d]*$", re.IGNORECASE
+)
+_MULTIPLIER = {"k": 1_000, "l": 100_000, "lakh": 100_000, "lakhs": 100_000}
+
+
+def _amount(cell: str) -> float | None:
+    """The single number in a table cell ('INR 1,20,000', '$15k', '35,000 (est.)'), else None."""
+    text = cell.replace(" ", " ").replace(" ", " ").strip()
+    if not text or "%" in text:
+        return None
+    match = _ONE_NUMBER.match(text)
+    if not match:
+        return None  # no number, or several numbers / a range: not checkable
+    value = float(match.group(1).replace(",", ""))
+    return value * _MULTIPLIER.get((match.group(2) or "").lower(), 1)
+
+
+def table_total_errors(headers: list[str], rows: list[list[str]]) -> list[str]:
+    """Check that a final 'Total' row equals the sum of the rows above it, per numeric column.
+
+    LLMs are unreliable at arithmetic; code is not. Only clear-cut columns are
+    checked (every item row holds exactly one number), so prose tables are ignored.
+    """
+    if len(rows) < 3 or not rows[-1] or not rows[-1][0].strip().lower().startswith("total"):
+        return []
+    items = rows[:-1]
+    if any("subtotal" in (row[0] or "").lower() for row in items):
+        return []
+    errors = []
+    for col in range(1, len(headers)):
+        total = _amount(rows[-1][col]) if col < len(rows[-1]) else None
+        values = [_amount(row[col]) for row in items]
+        if total is None or any(v is None for v in values):
+            continue
+        summed = sum(values)
+        if abs(summed - total) > max(1.0, total * 0.005):
+            errors.append(
+                f"table '{headers[0]}' column '{headers[col]}': the items add up to "
+                f"{summed:,.0f} but the Total row says {total:,.0f}"
+            )
+    return errors
+
+
 def _clean_text_list(value: Any) -> list[str]:
     if value is None:
         return []
@@ -190,10 +234,18 @@ class SectionContent(BaseModel):
     blocks: list[ContentBlock] = Field(min_length=1, max_length=12)
 
     @model_validator(mode="after")
-    def _dates_must_exist(self) -> "SectionContent":
-        bad = sorted(set(invalid_dates(self.to_text())))
-        if bad:
-            raise ValueError(f"these dates do not exist on the calendar: {', '.join(bad)}")
+    def _facts_must_check_out(self) -> "SectionContent":
+        # Deterministic checks for what LLMs get wrong; failures go back to the writer
+        # through the self-repair loop with the exact problem described.
+        problems = []
+        bad_dates = sorted(set(invalid_dates(self.to_text())))
+        if bad_dates:
+            problems.append(f"these dates do not exist on the calendar: {', '.join(bad_dates)}")
+        for block in self.blocks:
+            if isinstance(block, TableBlock):
+                problems.extend(table_total_errors(block.headers, block.rows))
+        if problems:
+            raise ValueError("; ".join(problems) + ". Fix the numbers so they are consistent.")
         return self
 
     def word_count(self) -> int:
@@ -302,6 +354,10 @@ class ReviewReport(BaseModel):
     strengths: list[str]
     summary: str
     notes: list[str] = Field(default_factory=list)
+    remaining_issues: list[str] = Field(
+        default_factory=list,
+        description="Issues still open when the score stayed below the threshold",
+    )
 
 
 class DocumentInfo(BaseModel):

@@ -193,7 +193,7 @@ def _overview(doc: DocxDocument, plan: Plan) -> None:
         if plan.assumptions:
             _styled_run(first, "Assumptions", bold=True, color=PRIMARY)
             for item in plan.assumptions:
-                _rich_text(cell.add_paragraph(style="List Bullet"), item, size=10)
+                _rich_text(cell.add_paragraph(style="List Bullet"), _sentence(item), size=10)
             first = None
         if plan.conflicts:
             heading = first or cell.add_paragraph()
@@ -203,7 +203,7 @@ def _overview(doc: DocxDocument, plan: Plan) -> None:
                         bold=True, color=PRIMARY)
             for item in plan.conflicts:
                 _rich_text(cell.add_paragraph(style="List Bullet"),
-                           item.replace("->", "→"), size=10)
+                           _sentence(item).replace("->", "→"), size=10)
 
 
 def _appendix(doc: DocxDocument, review: ReviewReport, meta: RenderMeta) -> None:
@@ -221,8 +221,9 @@ def _appendix(doc: DocxDocument, review: ReviewReport, meta: RenderMeta) -> None
          f"{t.duration_ms / 1000:.1f}s" if t.duration_ms is not None else "-"]
         for t in meta.todo
     ]
-    _render_table(doc, TableBlock(type="table", headers=["#", "Task", "Agent", "Status", "Time"],
-                                  rows=rows), widths=[Cm(1), Cm(9.2), Cm(2.4), Cm(1.8), Cm(1.6)])
+    if rows:
+        _render_table(doc, TableBlock(type="table", headers=["#", "Task", "Agent", "Status", "Time"],
+                                      rows=rows), widths=[Cm(1), Cm(9.2), Cm(2.4), Cm(1.8), Cm(1.6)])
 
     doc.add_heading("Quality review", level=2)
     if review.initial_score is None:
@@ -241,6 +242,12 @@ def _appendix(doc: DocxDocument, review: ReviewReport, meta: RenderMeta) -> None
             _rich_text(doc.add_paragraph(), f"Reviewer summary: {review.summary}")
         for note in review.notes:
             _rich_text(doc.add_paragraph(), note)
+        if review.remaining_issues:
+            p = doc.add_paragraph()
+            _styled_run(p, "Open points the reviewer flagged - please check before sending:",
+                        bold=True, color=PRIMARY)
+            for issue in review.remaining_issues:
+                _rich_text(doc.add_paragraph(style="List Bullet"), issue)
     if meta.providers:
         p = doc.add_paragraph()
         _styled_run(p, "Language models used by each agent:", size=9, bold=True, color=MUTED)
@@ -271,6 +278,7 @@ def _render_table(doc: DocxDocument, block: TableBlock, widths: list | None = No
     header = table.rows[0]
     _repeat_header(header)
     for cell, text in zip(header.cells, block.headers):
+        _cell_borders(cell, PRIMARY_HEX)  # no light grid lines inside the dark header
         _shade(cell, PRIMARY_HEX)
         _styled_run(cell.paragraphs[0], text, size=10, bold=True, color=WHITE)
 
@@ -281,7 +289,31 @@ def _render_table(doc: DocxDocument, block: TableBlock, widths: list | None = No
                 _shade(cell, ZEBRA_HEX)
             _rich_text(cell.paragraphs[0], text, size=10)
     _set_col_widths(table, widths or _auto_widths(block))
+    _keep_together(table)
     doc.add_paragraph().paragraph_format.space_after = Pt(2)
+
+
+def _keep_together(table, max_rows: int = 15) -> None:
+    """Stop a table splitting badly across pages (e.g. a header row alone at the bottom).
+
+    Rows never split internally. Small tables stay on one page; larger ones at
+    least keep the header with the first rows.
+    """
+    rows = table.rows
+    for row in rows:
+        tr_pr = row._tr.get_or_add_trPr()
+        cant_split = OxmlElement("w:cantSplit")
+        tr_pr.insert(0, cant_split)  # cantSplit precedes tblHeader in the schema
+    together = len(rows) - 1 if len(rows) <= max_rows else 3
+    for row in rows[:together]:
+        for cell in row.cells:
+            for paragraph in cell.paragraphs:
+                paragraph.paragraph_format.keep_with_next = True
+
+
+def _sentence(text: str) -> str:
+    text = text.strip()
+    return text[:1].upper() + text[1:] if text else text
 
 
 def _rich_text(paragraph: Paragraph, text: str, size: int | None = None) -> None:
@@ -312,9 +344,21 @@ def _auto_widths(block: TableBlock) -> list:
     return [Cm(minimum + spare * w / total) for w in weights]
 
 
+_TYPOGRAPHY = str.maketrans({
+    "‐": "-", "‑": "-", "‒": "-",   # hyphen variants old Word renders oddly
+    " ": " ", " ": " ", " ": " ",   # non-breaking / narrow spaces
+    "​": "", "­": "",                    # zero-width space, soft hyphen
+})
+
+
+def _normalize(text: str) -> str:
+    """LLMs love typographic hyphens and spaces; Word 2007-era fonts render them badly."""
+    return text.translate(_TYPOGRAPHY)
+
+
 def _styled_run(paragraph: Paragraph, text: str, *, size: int | None = None, bold: bool = False,
                 italic: bool = False, color: RGBColor | None = None):
-    run = paragraph.add_run(text)
+    run = paragraph.add_run(_normalize(text))
     if size:
         run.font.size = Pt(size)
     run.font.bold = bold or None
@@ -337,6 +381,23 @@ def _shade(cell: _Cell, fill_hex: str) -> None:
     tc_pr.insert_element_before(
         shd, "w:noWrap", "w:tcMar", "w:textDirection", "w:tcFitText", "w:vAlign",
         "w:hideMark", "w:headers", "w:cellIns", "w:cellDel", "w:cellMerge", "w:tcPrChange",
+    )
+
+
+def _cell_borders(cell: _Cell, color_hex: str) -> None:
+    tc_pr = cell._tc.get_or_add_tcPr()
+    borders = OxmlElement("w:tcBorders")
+    for edge in ("top", "left", "bottom", "right"):
+        el = OxmlElement(f"w:{edge}")
+        el.set(qn("w:val"), "single")
+        el.set(qn("w:sz"), "4")
+        el.set(qn("w:space"), "0")
+        el.set(qn("w:color"), color_hex)
+        borders.append(el)
+    tc_pr.insert_element_before(
+        borders, "w:shd", "w:noWrap", "w:tcMar", "w:textDirection", "w:tcFitText",
+        "w:vAlign", "w:hideMark", "w:headers", "w:cellIns", "w:cellDel", "w:cellMerge",
+        "w:tcPrChange",
     )
 
 

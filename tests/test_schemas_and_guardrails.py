@@ -63,6 +63,69 @@ def test_planner_gets_date_error_back_and_fixes_it():
     assert trace.json_repairs == 1
 
 
+def test_renderer_normalises_typography_and_keeps_tables_together(tmp_path):
+    from datetime import datetime
+
+    from docx import Document
+    from docx.oxml.ns import qn
+
+    from app.rendering.docx_renderer import RenderMeta, render_docx
+    from app.schemas import ReviewReport, SectionContent
+
+    plan = Plan(document_type="Trip Plan", title="Four‑Member Tour", audience="Your group",
+                intent_summary="Plan the trip.", conflicts=["short timeline -> one week"],
+                sections=[{"id": i, "title": f"S{i}", "objective": "Cover it"} for i in range(1, 4)])
+    content = SectionContent(blocks=[
+        {"type": "paragraph", "text": "weather‑related delays possible"},
+        {"type": "table", "headers": ["Item", "Cost"], "rows": [["Hotel", "1"], ["Food", "2"]]},
+    ])
+    review = ReviewReport(initial_score=9, final_score=9, threshold=8, revision_rounds=0,
+                          revised_sections=[], issues_found=[], strengths=[], summary="ok")
+    path = tmp_path / "t.docx"
+    render_docx(plan, {1: content, 2: content, 3: content}, review,
+                RenderMeta("r1", datetime.now(), [], []), path)
+
+    doc = Document(str(path))
+    text = "\n".join(p.text for p in doc.paragraphs)
+    assert "‑" not in text and " " not in text
+    assert "Four-Member Tour" in text and "weather-related delays possible" in text
+
+    callout = next(t for t in doc.tables if "Short timeline" in t.rows[0].cells[0].text)
+    assert callout is not None  # conflict text is capitalised
+
+    table = doc.tables[-1]  # last content table (no appendix task table: empty task list)
+    assert all(row._tr.trPr.find(qn("w:cantSplit")) is not None for row in table.rows)
+    assert table.rows[0].cells[0].paragraphs[0].paragraph_format.keep_with_next
+
+
+def test_table_totals_are_checked():
+    from app.schemas import table_total_errors
+
+    good = [["Flights", "INR 1,40,000", "35,000"], ["Hotels", "1,20,000", "30,000"],
+            ["Total", "INR 2,60,000", "65,000"]]
+    assert table_total_errors(["Item", "Cost", "Per person"], good) == []
+
+    bad = [["Flights", "$120,000"], ["Hotels", "$140,000"], ["Total", "$500,000"]]
+    errors = table_total_errors(["Item", "Cost"], bad)
+    assert len(errors) == 1 and "260,000" in errors[0] and "500,000" in errors[0]
+
+    assert table_total_errors(["Item", "Cost"], [["A", "15k"], ["B", "5k"], ["Total", "20,000"]]) == []
+    # Ranges, percentages and prose are not checkable, so they are ignored.
+    assert table_total_errors(["Item", "Cost"], [["A", "10-15k"], ["B", "5k"], ["Total", "20k"]]) == []
+    assert table_total_errors(["Item", "Share"], [["A", "40%"], ["B", "70%"], ["Total", "100%"]]) == []
+    assert table_total_errors(["Item", "Cost"], [["A", "1"], ["B", "2"], ["Grand", "9"]]) == []
+
+
+def test_section_with_wrong_total_is_rejected_for_repair():
+    from pydantic import ValidationError
+
+    from app.schemas import SectionContent
+
+    with pytest.raises(ValidationError, match="add up to"):
+        SectionContent(blocks=[{"type": "table", "headers": ["Item", "Cost"],
+                                "rows": [["A", "100"], ["B", "200"], ["Total", "400"]]}])
+
+
 def test_extract_json_handles_noise():
     assert extract_json('Sure! {"a": 1} hope this helps') == {"a": 1}
     with pytest.raises(ValueError):

@@ -96,6 +96,9 @@ complex request.
   model that's ready, instead of sleeping. Daily-quota errors rest a model for an hour.
 - **Shared key-facts sheet:** the planner fixes budget figures, dates, owners and choices
   once; all parallel writers must use them, which removes most cross-section contradictions.
+- **Deterministic fact checks:** code verifies what LLMs get wrong (impossible dates such as
+  2027-02-29, table Total rows that do not equal the sum of their items) and sends the exact
+  error back for correction before the reviewer ever sees the draft.
 - **JSON self-repair:** if output fails schema validation, the exact validation error is
   sent back to the model, which corrects it.
 - **Graceful degradation:** if a section can't be generated, a marked placeholder is
@@ -200,7 +203,7 @@ Response (abridged; per-model numbers are illustrative):
 pytest -q
 ```
 
-54 tests, fully offline (no API calls): end-to-end API runs, background jobs, the web page, the reflection loop, cross-section
+58 tests, fully offline (no API calls): end-to-end API runs, background jobs, the web page, the reflection loop, cross-section
 fixes, discarding a revision that lowers the score, placeholder recovery, retry / cooldown /
 fallback / JSON self-repair, per-agent routing and load balancing, token accounting, the
 HTTP provider against a simulated server (429 + Retry-After, daily quota,

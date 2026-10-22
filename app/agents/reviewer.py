@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from datetime import date
+
 from app.agents.prompts import REVIEWER_SYSTEM, with_context
 from app.llm import LLMClient
 from app.schemas import Plan, Review, SectionContent
@@ -29,6 +31,7 @@ class ReviewerAgent:
         ]
         context = {
             "user_request": request,
+            "today": date.today().isoformat(),
             "review_round": review_round,
             "plan": {
                 "document_type": plan.document_type,

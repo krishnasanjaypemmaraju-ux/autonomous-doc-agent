@@ -79,6 +79,8 @@ Rules:
   Plausible mock data is fine for details key_facts don't cover; mark financial figures
   as estimates.
 - Never write placeholders such as "City A", "Vendor X" or "[Name]"; use concrete examples.
+- Time: `today` is in the context. Anything dated after today is planned, not done: never
+  mark it "Completed" or describe it in the past tense.
 - Write for the plan's audience: a personal plan speaks to the requester ("your group"),
   a business document speaks to its stakeholders.
 - Do NOT repeat the section title as a heading. No markdown headings.
@@ -106,6 +108,7 @@ Check:
   plan's key_facts (a section contradicting key_facts is a critical issue).
 - Specificity: concrete owners, dates and figures rather than generic filler. Placeholders
   like "City A" or "Vendor X" are a major issue.
+- Time: actions dated after today must not be marked completed (a major issue).
 - Fit: the document suits who asked (a personal request must not read like a corporate memo)
   and uses the currency the request implies.
 - Professionalism: clear, well structured, appropriate tone for the audience.

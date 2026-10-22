@@ -139,11 +139,12 @@ class DocumentAgent:
         notes: list[str] = []
         rounds = 0
 
-        while (
-            best_review.score < threshold
-            and best_review.issues
-            and rounds < self.settings.max_revision_rounds
-        ):
+        def needs_revision(review: Review) -> bool:
+            # A passing score doesn't excuse a known contradiction or missing requirement.
+            serious = any(i.severity in ("critical", "major") for i in review.issues)
+            return bool(review.issues) and (review.score < threshold or serious)
+
+        while needs_revision(best_review) and rounds < self.settings.max_revision_rounds:
             rounds += 1
             # Fix what matters first; minor polish only when nothing bigger is left.
             targets = [i for i in best_review.issues if i.severity != "minor"] or best_review.issues
@@ -172,6 +173,13 @@ class DocumentAgent:
 
         report = self._report(initial, best_review, rounds, revised, issues_found, threshold)
         report.notes = notes
+        if best_review.score < threshold:
+            # Be explicit rather than ship known problems silently.
+            report.remaining_issues = [
+                f"[{i.severity}] {titles[i.section_id]}: {i.problem}" for i in best_review.issues
+            ]
+            trace.warn(f"Final quality score {best_review.score}/10 is below the {threshold}/10 "
+                       "target; open points are listed in the review and the document appendix.")
         return best, report
 
     async def _revise_sections(
