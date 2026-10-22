@@ -49,7 +49,8 @@ class Settings(BaseSettings):
     # --- Reliability ---
     llm_timeout_seconds: float = Field(default=60.0, gt=0)
     llm_max_retries: int = Field(default=5, ge=0, le=8)
-    max_retry_wait_seconds: float = Field(default=30.0, ge=0)
+    # Free-tier per-minute limits recover within 60s; wait that long before the offline model.
+    max_retry_wait_seconds: float = Field(default=60.0, ge=0)
 
     # --- Agent behaviour ---
     max_parallel_writers: int = Field(default=2, ge=1, le=8)

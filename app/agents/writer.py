@@ -6,7 +6,7 @@ from datetime import date
 
 from app.agents.prompts import WRITER_SYSTEM, with_context
 from app.llm import LLMClient
-from app.schemas import Plan, ReviewIssue, SectionContent, SectionSpec
+from app.schemas import Plan, ReviewIssue, SectionContent, SectionSpec, total_budget
 from app.trace import RunTrace
 
 
@@ -49,6 +49,8 @@ class WriterAgent:
         )
 
     async def _generate(self, instruction: str, context: dict, trace: RunTrace) -> SectionContent:
+        # The plan's total budget lets code reject cost tables that exceed it.
+        budget = total_budget(context["key_facts"])
         return await self.llm.generate(
             agent=self.name,
             system=WRITER_SYSTEM,
@@ -57,6 +59,7 @@ class WriterAgent:
             trace=trace,
             temperature=0.6,
             max_tokens=1800,
+            validation_context={"budget_total": budget} if budget else None,
         )
 
     @staticmethod

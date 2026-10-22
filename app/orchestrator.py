@@ -42,7 +42,8 @@ class DocumentAgent:
         self.writer = WriterAgent(llm)
         self.reviewer = ReviewerAgent(llm)
 
-    async def run(self, raw_request: str, trace: RunTrace | None = None) -> AgentResponse:
+    async def run(self, raw_request: str, trace: RunTrace | None = None,
+                  locale: str | None = None) -> AgentResponse:
         """Run the full pipeline. Pass a trace to watch its TODO list update live."""
         trace = trace or RunTrace()
 
@@ -56,7 +57,7 @@ class DocumentAgent:
         plan_task = trace.add_task("Analyse request and build execution plan", "planner")
         trace.start(plan_task)
         try:
-            plan = await self.planner.plan(request, trace)
+            plan = await self.planner.plan(request, trace, locale=locale)
         except LLMUnavailableError as exc:
             trace.fail(plan_task, str(exc))
             raise

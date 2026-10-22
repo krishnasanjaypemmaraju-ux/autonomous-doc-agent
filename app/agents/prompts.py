@@ -22,11 +22,19 @@ Decide:
 - the document type that best serves the request (proposal, project plan, meeting minutes,
   SOP, business report, technical design, product spec, ...);
 - the audience and tone. Match the real context: a personal request (a family trip, a
-  wedding, a household budget) gets a practical plan for the requester and their group,
-  NOT a corporate document for a management committee;
-- units and currency: if an amount has no currency, infer it from context (names, places,
-  number formats such as 5,00,000 or "lakh" suggest INR) and record the choice as an
-  explicit assumption. Never silently pick one;
+  wedding, a household budget, building one's own house; first-person wording such as
+  "my budget", "I am", "our family") gets a practical plan for the requester and their
+  group, NOT a corporate document for a management committee;
+- units and currency: if an amount has no currency, infer it from requester_locale when
+  given (e.g. en-IN or Asia/Kolkata -> INR, written the Indian way such as 1,00,00,000 or
+  "1 crore"), otherwise from names, places and number formats. Record the choice and the
+  reason as an explicit assumption. Never silently pick one. Size the scope to what that
+  amount realistically buys in that country;
+- numbers_in_request (when present) gives the exact, code-computed reading of every number
+  in the request. Use those readings verbatim; never re-count digits yourself;
+- requester_locale identifies the requester's country and conventions only. Do not infer a
+  city from a time-zone name (Asia/Kolkata covers all of India); if a location matters and
+  is not given, state a reasonable assumption and say it is one;
 - what information is missing -> make reasonable, explicit assumptions (never ask questions);
 - any conflicting or ambiguous requirements -> state EACH one separately and how you resolve
   it, written as "<conflict> -> <resolution>". Check systematically for:

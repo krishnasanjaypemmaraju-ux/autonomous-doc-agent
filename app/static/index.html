@@ -48,6 +48,8 @@
           display: inline-block; }
   button.primary:disabled { opacity: .55; cursor: wait; }
   a.download { background: var(--ok); font-size: 16px; padding: 13px 26px; }
+  button.secondary { background: transparent; color: var(--accent); border: 1px solid var(--accent);
+                     margin-top: 8px; }
   .hint { color: var(--muted); font-size: 13px; }
   .hidden { display: none; }
   ol.todo { list-style: none; margin: 0; padding: 0; }
@@ -123,11 +125,13 @@
     </div>
     <div class="doc-title" id="doc-title"></div>
     <div class="hint" id="doc-meta"></div>
+    <p class="hint" id="asked"></p>
     <p id="summary"></p>
     <details open><summary>Conflicts the agent found and how it resolved them</summary><ul id="conflicts"></ul></details>
     <details><summary>Assumptions it made for missing information</summary><ul id="assumptions"></ul></details>
     <details><summary>Key facts every section had to follow</summary><ul id="facts"></ul></details>
     <details><summary>Which AI model did which job</summary><ul id="models"></ul></details>
+    <div class="row"><button id="again" class="primary secondary">&#10227; Create another document</button></div>
   </section>
 
   <section class="card">
@@ -143,11 +147,23 @@ const EXAMPLES = {
 };
 const ICON = { done: "✓", failed: "✗", skipped: "–", pending: "○", in_progress: "↻" };
 const $ = (id) => document.getElementById(id);
-let timer = null, started = 0;
+let timer = null, started = 0, lastRequest = "";
 
 document.querySelectorAll("[data-example]").forEach((b) =>
   b.addEventListener("click", () => { $("req").value = EXAMPLES[b.dataset.example]; $("req").focus(); }));
 $("go").addEventListener("click", start);
+$("again").addEventListener("click", newDocument);
+
+function newDocument() {
+  // Clear everything from the previous run so the next one starts fresh.
+  clearTimeout(timer);
+  $("req").value = "";
+  $("todo").replaceChildren();
+  ["progress", "result", "error"].forEach((id) => show(id, false));
+  reset();
+  window.scrollTo({ top: 0, behavior: "smooth" });
+  $("req").focus();
+}
 $("req").addEventListener("keydown", (e) => { if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) start(); });
 
 function show(id, on) { $(id).classList.toggle("hidden", !on); }
@@ -160,16 +176,23 @@ function fill(ul, items, empty) {
 
 async function start() {
   const request = $("req").value.trim();
-  show("error", false); show("result", false);
+  clearTimeout(timer);
+  show("error", false); show("result", false); show("progress", false);
+  $("todo").replaceChildren();
   if (!request) { return fail("Please describe the document you need first."); }
   $("go").disabled = true; $("go").textContent = "Working…";
   try {
+    // The browser's language and time zone let the agent infer currency and conventions
+    // (e.g. en-IN / Asia/Kolkata -> rupees) when the request doesn't say.
+    let locale = navigator.language || "";
+    try { locale += `; timezone ${Intl.DateTimeFormat().resolvedOptions().timeZone}`; } catch (e) { }
     const res = await fetch("/jobs", { method: "POST", headers: { "Content-Type": "application/json" },
-                                       body: JSON.stringify({ request }) });
+                                       body: JSON.stringify({ request, locale: locale.slice(0, 100) }) });
     const body = await res.json();
     if (!res.ok) { return fail(body.detail?.[0]?.msg || body.detail || "Request rejected."); }
     started = Date.now(); $("todo").replaceChildren(); show("progress", true);
     $("progress-title").textContent = "Step 2 — The agent is working";
+    lastRequest = request;
     poll(body.job_id);
   } catch (e) { fail("Could not reach the server. Is it still running?"); }
 }
@@ -183,6 +206,7 @@ async function poll(jobId) {
     if (job.status === "running") { timer = setTimeout(() => poll(jobId), 800); return; }
     if (job.status === "failed") { return fail(job.error?.detail || "The agent could not finish."); }
     $("progress-title").textContent = "Step 2 — Done. Here is everything the agent did:";
+    $("req").value = "";  // the box is ready for the next document
     renderResult(job.result); reset(); loadDocs();
   } catch (e) { timer = setTimeout(() => poll(jobId), 1500); }
 }
@@ -208,6 +232,7 @@ function renderResult(r) {
     : `Self-review: ${rv.final_score}/10`;
   $("doc-title").textContent = r.document.title;
   $("doc-meta").textContent = `${r.document.document_type} · ${r.document.section_count} sections · ${r.document.word_count.toLocaleString()} words · for ${r.plan.audience} · ${(r.duration_ms / 1000).toFixed(0)} s`;
+  $("asked").textContent = `Your request: “${lastRequest}”`;
   $("summary").textContent = r.summary + (r.warnings.length ? "  Note: " + r.warnings.join(" ") : "");
   fill($("conflicts"), r.plan.conflicts_resolved, "No conflicting requirements found.");
   fill($("assumptions"), r.plan.assumptions, "No assumptions were needed.");

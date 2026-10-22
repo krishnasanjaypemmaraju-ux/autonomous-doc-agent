@@ -99,6 +99,7 @@ class LLMClient:
         temperature: float = 0.4,
         max_tokens: int = 2048,
         allow_offline: bool = True,
+        validation_context: dict | None = None,
     ) -> T:
         errors: list[str] = []
         chain = self.chain_for(agent)
@@ -151,7 +152,7 @@ class LLMClient:
 
                 trace.add_tokens(provider.name, getattr(raw, "tokens", 0))
                 try:
-                    result = schema.model_validate(extract_json(raw))
+                    result = schema.model_validate(extract_json(raw), context=validation_context)
                 except (ValueError, ValidationError) as exc:
                     problem = describe_error(exc)
                     errors.append(f"{provider.name}: invalid output ({problem})")

@@ -10,7 +10,7 @@ import re
 from datetime import date
 from typing import Annotated, Any, Literal, Union
 
-from pydantic import BaseModel, Field, field_validator, model_validator
+from pydantic import BaseModel, Field, ValidationInfo, field_validator, model_validator
 
 SectionFormat = Literal["prose", "bullets", "table", "mixed"]
 TaskStatus = Literal["pending", "in_progress", "done", "failed", "skipped"]
@@ -29,6 +29,13 @@ class AgentRequest(BaseModel):
             "Write a project plan to migrate our on-premise CRM to Salesforce within "
             "4 months. Team of 5 engineers, budget $120,000."
         ],
+    )
+    locale: str | None = Field(
+        default=None,
+        max_length=100,
+        description="Optional requester locale, e.g. 'en-IN; timezone Asia/Kolkata'. Used to "
+                    "infer currency and conventions when the request doesn't state them.",
+        examples=["en-IN; timezone Asia/Kolkata"],
     )
 
 
@@ -112,6 +119,95 @@ def table_total_errors(headers: list[str], rows: list[list[str]]) -> list[str]:
     return errors
 
 
+_MONEY = re.compile(
+    r"(?:₹|INR|Rs\.?|\$|USD|US\$|€|EUR|£|GBP)\s*(\d[\d,]*(?:\.\d+)?)\s*"
+    r"(crores?|cr|lakhs?|million|mn|m|k)?\b",
+    re.IGNORECASE,
+)
+_SCALE = {"crore": 10**7, "crores": 10**7, "cr": 10**7, "lakh": 10**5, "lakhs": 10**5,
+          "million": 10**6, "mn": 10**6, "m": 10**6, "k": 10**3}
+_PART_WORDS = ("cost", "budget", "contingency", "reserve", "allocation", "fee", "spend",
+               "expense")
+
+
+def _money(text: str) -> float | None:
+    match = _MONEY.search(text.replace(" ", " ").replace(" ", " "))
+    if not match:
+        return None
+    value = float(match.group(1).replace(",", ""))
+    return value * _SCALE.get((match.group(2) or "").lower(), 1)
+
+
+_PLACEHOLDER = re.compile(
+    r"\[(?:insert|your|requester|client|company|name|tbd|tbc|xx)[^\]]{0,30}\]"
+    r"|\b(?:City|Vendor|Company|Contractor|Supplier|Person|Client) [A-E]\b"
+    r"|\bTBD\b|\bXXX+\b|\bLorem ipsum\b",
+    re.IGNORECASE,
+)
+
+
+def placeholders(text: str) -> list[str]:
+    """Template leftovers such as '[Requester Name]', 'City A' or 'TBD'."""
+    return sorted({m.group(0) for m in _PLACEHOLDER.finditer(text)})
+
+
+def total_budget(key_facts: list[str]) -> float | None:
+    for fact in key_facts:
+        label, sep, value = fact.partition(":")
+        lowered = label.lower()
+        if sep and "total" in lowered and ("budget" in lowered or "cost" in lowered):
+            return _money(value)
+    return None
+
+
+def table_over_budget(headers: list[str], rows: list[list[str]], budget: float) -> list[str]:
+    """Money columns whose items add up to more than the plan's total budget."""
+    errors = []
+    item_rows = [r for r in rows if not r[0].strip().lower().startswith(("total", "grand", "sub"))]
+    if len(item_rows) < 2:
+        return errors
+    for col in range(1, len(headers)):
+        header = headers[col].lower()
+        if not any(w in header for w in ("cost", "amount", "budget", "inr", "₹", "$", "usd",
+                                         "estimate", "price", "allocation", "spend")):
+            continue
+        if "per" in header or "%" in header or "rate" in header:
+            continue  # per-person / per-unit columns are not totals
+        values = [_money(r[col]) or _amount(r[col]) for r in item_rows]
+        if any(v is None for v in values):
+            continue
+        if sum(values) > budget * 1.005:
+            errors.append(f"column '{headers[col]}' adds up to {sum(values):,.0f}, which is more "
+                          f"than the total budget {budget:,.0f}; the items must fit within it")
+    return errors
+
+
+def budget_overrun(key_facts: list[str]) -> str | None:
+    """'Total budget: X' must not be smaller than the money parts listed beside it."""
+    total = None
+    parts: list[tuple[str, float]] = []
+    for fact in key_facts:
+        label, sep, value = fact.partition(":")
+        if not sep or "%" in value.split("(")[0]:
+            continue  # percentages describe shares, not amounts
+        amount = _money(value)
+        if amount is None:
+            continue
+        lowered = label.lower()
+        if "total" in lowered and ("budget" in lowered or "cost" in lowered):
+            total = total or amount
+        elif any(word in lowered for word in _PART_WORDS):
+            parts.append((label.strip(), amount))
+    if total is None or len(parts) < 2:
+        return None
+    summed = sum(a for _, a in parts)
+    if summed > total * 1.005:
+        listed = " + ".join(f"{label} {a:,.0f}" for label, a in parts)
+        return (f"key_facts budget parts add up to {summed:,.0f} ({listed}), which is more than "
+                f"the total budget {total:,.0f}. Adjust the parts so they fit within the total")
+    return None
+
+
 def _clean_text_list(value: Any) -> list[str]:
     if value is None:
         return []
@@ -170,6 +266,11 @@ class Plan(BaseModel):
                 f"these dates do not exist on the calendar: {', '.join(bad)}. "
                 "Replace them with real dates (e.g. use the last valid day of the month)."
             )
+        if overrun := budget_overrun(self.key_facts):
+            raise ValueError(overrun)
+        found = placeholders(" ".join(texts + [self.title]))
+        if found:
+            raise ValueError(f"replace these placeholders with concrete values: {', '.join(found)}")
         return self
 
     @model_validator(mode="after")
@@ -234,16 +335,23 @@ class SectionContent(BaseModel):
     blocks: list[ContentBlock] = Field(min_length=1, max_length=12)
 
     @model_validator(mode="after")
-    def _facts_must_check_out(self) -> "SectionContent":
+    def _facts_must_check_out(self, info: ValidationInfo) -> "SectionContent":
         # Deterministic checks for what LLMs get wrong; failures go back to the writer
         # through the self-repair loop with the exact problem described.
         problems = []
-        bad_dates = sorted(set(invalid_dates(self.to_text())))
+        text = self.to_text()
+        bad_dates = sorted(set(invalid_dates(text)))
         if bad_dates:
             problems.append(f"these dates do not exist on the calendar: {', '.join(bad_dates)}")
+        found = placeholders(text)
+        if found:
+            problems.append(f"replace these placeholders with concrete values: {', '.join(found)}")
+        budget = (info.context or {}).get("budget_total") if info else None
         for block in self.blocks:
             if isinstance(block, TableBlock):
                 problems.extend(table_total_errors(block.headers, block.rows))
+                if budget:
+                    problems.extend(table_over_budget(block.headers, block.rows, budget))
         if problems:
             raise ValueError("; ".join(problems) + ". Fix the numbers so they are consistent.")
         return self

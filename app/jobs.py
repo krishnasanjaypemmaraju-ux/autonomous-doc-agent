@@ -41,9 +41,9 @@ class JobStore:
         self.max_jobs = max_jobs
         self._jobs: OrderedDict[str, Job] = OrderedDict()
 
-    def start(self, request: str) -> Job:
+    def start(self, request: str, locale: str | None = None) -> Job:
         job = Job(trace=RunTrace())
-        job.task = asyncio.create_task(self._run(job, request))
+        job.task = asyncio.create_task(self._run(job, request, locale))
         self._jobs[job.id] = job
         while len(self._jobs) > self.max_jobs:  # forget the oldest finished jobs
             oldest_id, oldest = next(iter(self._jobs.items()))
@@ -55,9 +55,9 @@ class JobStore:
     def get(self, job_id: str) -> Job | None:
         return self._jobs.get(job_id)
 
-    async def _run(self, job: Job, request: str) -> None:
+    async def _run(self, job: Job, request: str, locale: str | None) -> None:
         try:
-            job.result = await self.agent.run(request, trace=job.trace)
+            job.result = await self.agent.run(request, trace=job.trace, locale=locale)
             job.status = "completed"
         except GuardrailViolation as exc:
             job.error = ErrorResponse(error="request_rejected", detail=str(exc))

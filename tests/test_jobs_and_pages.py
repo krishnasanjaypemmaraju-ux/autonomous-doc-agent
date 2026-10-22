@@ -63,6 +63,28 @@ def test_missing_document_error_points_to_list(client):
     assert "GET /documents" in detail
 
 
+def test_locale_reaches_the_planner(tmp_path):
+    from fastapi.testclient import TestClient
+
+    from app.llm.mock import MockProvider
+    from app.main import create_app
+    from tests.conftest import make_settings
+
+    seen: list[str] = []
+
+    class Capturing(MockProvider):
+        async def chat(self, messages, **kwargs):
+            if "AGENT: PLANNER" in messages[0]["content"]:
+                seen.append(messages[1]["content"])
+            return await super().chat(messages, **kwargs)
+
+    with TestClient(create_app(make_settings(tmp_path), providers=[Capturing()])) as c:
+        body = c.post("/agent", json={"request": "Plan my house construction, budget 10000000",
+                                      "locale": "en-IN; timezone Asia/Kolkata"})
+        assert body.status_code == 200
+    assert seen and '"requester_locale": "en-IN; timezone Asia/Kolkata"' in seen[0]
+
+
 def test_home_page_is_served(client):
     page = client.get("/")
     assert page.status_code == 200

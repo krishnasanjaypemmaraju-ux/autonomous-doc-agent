@@ -145,7 +145,7 @@ def create_app(settings: Settings | None = None,
         request: Request,
         return_file: bool = Query(False, description="Return the .docx file instead of JSON"),
     ):
-        result: AgentResponse = await request.app.state.agent.run(body.request)
+        result: AgentResponse = await request.app.state.agent.run(body.request, locale=body.locale)
         result.document.download_url = download_url(request, result.document.filename)
         if return_file:
             return FileResponse(settings.output_dir / result.document.filename,
@@ -161,7 +161,7 @@ def create_app(settings: Settings | None = None,
               responses={422: {"model": ErrorResponse, "description": "Rejected request"}})
     async def start_job(body: AgentRequest, request: Request) -> JobCreated:
         validate_request(body.request)  # reject bad input now, not after polling
-        job = request.app.state.jobs.start(body.request)
+        job = request.app.state.jobs.start(body.request, body.locale)
         return JobCreated(job_id=job.id,
                           status_url=str(request.url_for("job_status", job_id=job.id)))
 
