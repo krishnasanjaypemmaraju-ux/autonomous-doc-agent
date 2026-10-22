@@ -87,7 +87,7 @@ timeline didn't match the RACI; 3 related sections fixed together), 5/10 → 9/1
 complex request.
 
 ### Supporting reliability features
-- **Multi-model routing and load balancing:** each agent has its own model pool; writers
+- **Multi-model routing and load balancing:** six free models across two providers; each agent has its own model pool; writers
   rotate round-robin. Free tiers limit each *model* separately (Groq: 8K tokens/minute per
   model), so spreading the work multiplies the usable capacity. Every response reports
   `calls_by_agent` and `tokens_by_model`.
@@ -197,10 +197,26 @@ Response (abridged; per-model numbers are illustrative):
 
 ## Test inputs
 
+The two assignment test inputs:
+
 | | Request | What it demonstrates |
 |---|---|---|
 | **Standard** | `examples/standard_request.json`: CRM to Salesforce project plan, 4 months, 5 engineers, $120k | Clean planning, consistent facts, a self-correction loop |
 | **Complex** | `examples/complex_request.json`: "short but cover everything", budget under $20k **and** 24/7 in 12 languages from day one, unsure whether proposal or report | Detects each conflict, proposes a feasible phased plan, chooses the document type itself, states assumptions |
+
+More ready-made examples (also one click away on the web page):
+
+| Example | Shows |
+|---|---|
+| `meeting_minutes_request.json` | Decisions and an action-item table with owners and deadlines |
+| `family_trip_request.json` | A personal plan in rupees (with `locale: en-IN`) whose budget table adds up exactly |
+| `onboarding_sop_request.json` | A day-by-day procedure with owners and verification steps |
+
+```bash
+python scripts/demo.py                 # the two assignment inputs
+python scripts/demo.py all             # every example
+python scripts/demo.py family_trip     # just one
+```
 
 ## Tests
 

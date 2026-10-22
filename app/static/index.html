@@ -102,8 +102,15 @@
     <textarea id="req" maxlength="4000"
       placeholder="e.g. Write a project plan to migrate our CRM to Salesforce within 4 months. Team of 5 engineers, budget $120,000."></textarea>
     <div class="row">
-      <button class="chip" data-example="standard">Example: clear project plan</button>
-      <button class="chip" data-example="complex">Example: messy, conflicting request</button>
+      <span class="hint">Try an example:</span>
+      <button class="chip" data-example="project">Project plan</button>
+      <button class="chip" data-example="minutes">Meeting minutes</button>
+      <button class="chip" data-example="trip">Family trip (&#8377;)</button>
+      <button class="chip" data-example="sop">Onboarding SOP</button>
+      <button class="chip" data-example="complex">Messy request with conflicts</button>
+    </div>
+    <div class="row">
+      <span class="hint">Or type your own request above.</span>
       <span class="spacer"></span>
       <button id="go" class="primary">Generate document</button>
     </div>
@@ -141,8 +148,12 @@
 </main>
 
 <script>
+// Ready-made requests that cover different document types. They match examples/*.json.
 const EXAMPLES = {
-  standard: "Write a project plan to migrate our on-premise CRM to Salesforce within 4 months. Team of 5 engineers, budget $120,000. Include timeline, milestones, risks and who is responsible for what.",
+  project: "Write a project plan to migrate our on-premise CRM to Salesforce within 4 months. Team of 5 engineers, budget $120,000. Include timeline, milestones, risks and who is responsible for what.",
+  minutes: "Write the minutes of today's weekly product meeting. Attendees: Priya (Product Manager, chair), Arjun (Tech Lead), Meena (QA Lead) and Ravi (Designer). We reviewed the new checkout flow, fixed two payment bugs, and agreed to launch on 15 December. Include the decisions and an action-item table with owners and deadlines.",
+  trip: "Plan a 6-day family trip to Kerala in late December for 4 people (2 adults, 2 children aged 8 and 12) with a total budget of ₹2,50,000. Include a day-by-day itinerary, a budget table that adds up to the total, and a packing checklist.",
+  sop: "Create a standard operating procedure for onboarding a new software engineer during their first week: laptop and account setup, security training, codebase walkthrough and a first starter task. Include owners for each step, a day-by-day checklist and how completion is verified.",
   complex: "We need something for the board next week about moving to AI customer support - short but cover everything: costs, risks, vendors and rollout. Budget is tight, under $20k, but leadership wants 24/7 coverage in 12 languages from day one. Not sure if this should be a proposal or a report."
 };
 const ICON = { done: "✓", failed: "✗", skipped: "–", pending: "○", in_progress: "↻" };

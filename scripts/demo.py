@@ -68,13 +68,18 @@ def show(name: str, body: dict, seconds: float) -> None:
 
 def main() -> None:
     parser = argparse.ArgumentParser()
-    parser.add_argument("which", nargs="*", help="standard and/or complex (default: both)")
+    available = sorted(p.name.removesuffix("_request.json")
+                       for p in (ROOT / "examples").glob("*_request.json"))
+    parser.add_argument("which", nargs="*",
+                        help=f"examples to run: {', '.join(available)}, or 'all' "
+                             "(default: standard complex - the two assignment test inputs)")
     parser.add_argument("--url", help="Base URL of a running server (default: in-process)")
     args = parser.parse_args()
-    args.which = args.which or ["standard", "complex"]
-    unknown = set(args.which) - {"standard", "complex"}
+    args.which = available if args.which == ["all"] else (args.which or ["standard", "complex"])
+    unknown = set(args.which) - set(available)
     if unknown:
-        parser.error(f"unknown example(s): {', '.join(sorted(unknown))}")
+        parser.error(f"unknown example(s): {', '.join(sorted(unknown))}. "
+                     f"Choose from: {', '.join(available)}")
 
     if args.url:
         import httpx

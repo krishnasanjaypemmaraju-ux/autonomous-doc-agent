@@ -22,7 +22,8 @@ class NamedMock(MockProvider):
 def test_factory_assigns_models_per_agent(tmp_path):
     settings = make_settings(tmp_path, groq_api_key="g", gemini_api_key="m")
     providers = build_providers(settings)
-    assert list(providers) == ["groq-large", "groq-small", "groq-extra", "gemini", "gemini-lite", "mock"]
+    assert list(providers) == ["groq-large", "groq-small", "groq-extra", "gemini", "gemini-lite",
+                              "gemini-backup", "mock"]
 
     routes = build_routes(settings, providers)
     assert [p.name for p in routes["planner"]] == ["groq/openai/gpt-oss-120b", "gemini/gemini-3.5-flash"]
@@ -47,6 +48,26 @@ def test_reviewer_never_uses_offline_model_when_real_ones_exist():
         asyncio.run(client.generate(agent="reviewer", system="AGENT: REVIEWER",
                                     user="<context>{}</context>", schema=Review,
                                     trace=RunTrace(), allow_offline=False))
+
+
+def test_retry_wait_is_read_from_provider_messages():
+    import httpx
+    from app.llm.providers import OpenAICompatibleProvider, RetryableLLMError, _try_again_in
+
+    assert _try_again_in("Please try again in 16.045s.") == 16.045
+    assert _try_again_in("Please try again in 5m30.5s.") == 330.5
+    assert _try_again_in("Please try again in 1h2m3s.") == 3723
+    assert _try_again_in("no hint here") is None
+
+    daily = ('{"error":{"message":"Rate limit reached for model `m` on tokens per day (TPD): '
+             'Limit 200000, Used 199000, Requested 2500. Please try again in 7m12s."}}')
+    provider = OpenAICompatibleProvider(
+        "g", "https://x/v1", "m", "k",
+        transport=httpx.MockTransport(lambda r: httpx.Response(429, text=daily)))
+    import pytest
+    with pytest.raises(RetryableLLMError) as info:
+        asyncio.run(provider.chat([{"role": "user", "content": "hi"}]))
+    assert info.value.retry_after == 432  # the provider's own estimate, not a blind hour
 
 
 def test_daily_quota_429_rests_model_for_an_hour():

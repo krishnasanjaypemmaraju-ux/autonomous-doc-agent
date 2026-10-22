@@ -131,7 +131,9 @@ class OpenAICompatibleProvider(ChatProvider):
         if status == 429 or status >= 500:
             retry_after = _retry_after(response)
             if status == 429 and _DAILY_QUOTA.search(response.text):
-                retry_after = 3600.0  # daily free quota used up: rest this model for an hour
+                # Daily free quota used up: rest this model until the provider says it
+                # recovers (rolling windows often free up in minutes), else for an hour.
+                retry_after = _try_again_in(response.text) or 3600.0
             raise RetryableLLMError(f"{self.name}: HTTP {status} {body}", retry_after=retry_after)
         # Groq rejects a completion with 400 json_validate_failed when the model
         # emits invalid JSON in JSON mode. That is the model's fault, not ours: retry.
@@ -145,7 +147,18 @@ class OpenAICompatibleProvider(ChatProvider):
 
 _DAILY_QUOTA = re.compile(r"PerDay|per day|requests per day|RPD", re.IGNORECASE)
 _RETRY_DELAY_IN_BODY =re.compile(r'"retryDelay"\s*:\s*"(\d+(?:\.\d+)?)s"')
-_TRY_AGAIN_IN_BODY = re.compile(r"try again in (?:(\d+)m)?(\d+(?:\.\d+)?)s", re.IGNORECASE)
+_TRY_AGAIN_IN_BODY = re.compile(
+    r"try again in (?:(\d+)h)?(?:(\d+)m)?(?:(\d+(?:\.\d+)?)s)?", re.IGNORECASE
+)
+
+
+def _try_again_in(body: str) -> float | None:
+    """Parse 'Please try again in 1h2m3.5s' / '5m30s' / '16.04s' into seconds."""
+    match = _TRY_AGAIN_IN_BODY.search(body)
+    if not match or not any(match.groups()):
+        return None
+    hours, minutes, seconds = match.groups()
+    return int(hours or 0) * 3600 + int(minutes or 0) * 60 + float(seconds or 0)
 
 
 def _retry_after(response: httpx.Response) -> float | None:
@@ -159,6 +172,4 @@ def _retry_after(response: httpx.Response) -> float | None:
     body = response.text
     if match := _RETRY_DELAY_IN_BODY.search(body):
         return float(match.group(1))
-    if match := _TRY_AGAIN_IN_BODY.search(body):
-        return int(match.group(1) or 0) * 60 + float(match.group(2))
-    return None
+    return _try_again_in(body)

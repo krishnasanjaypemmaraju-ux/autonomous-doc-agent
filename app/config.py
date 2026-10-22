@@ -28,6 +28,8 @@ class Settings(BaseSettings):
     # gemini-2.5-flash allows only 20 free requests/day; the 3.5 models have their own quotas.
     gemini_model: str = "gemini-3.5-flash"
     gemini_lite_model: str | None = "gemini-3.5-flash-lite"
+    # Extra fallback with its own free quota, used only when the others are busy.
+    gemini_backup_model: str | None = "gemini-2.5-flash-lite"
 
     ollama_enabled: bool = False
     ollama_base_url: str = "http://localhost:11434/v1"

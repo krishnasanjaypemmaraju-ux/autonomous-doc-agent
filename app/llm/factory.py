@@ -50,6 +50,8 @@ def build_providers(settings: Settings) -> dict[str, ChatProvider]:
         add("gemini", GEMINI_BASE_URL, settings.gemini_model, settings.gemini_api_key, "gemini")
         add("gemini-lite", GEMINI_BASE_URL, settings.gemini_lite_model, settings.gemini_api_key,
             "gemini")
+        add("gemini-backup", GEMINI_BASE_URL, settings.gemini_backup_model,
+            settings.gemini_api_key, "gemini")
 
     if settings.ollama_enabled:
         add("ollama", settings.ollama_base_url, settings.ollama_model, None, "ollama")
