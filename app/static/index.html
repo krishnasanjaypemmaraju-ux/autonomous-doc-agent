@@ -134,6 +134,9 @@
     <div class="hint" id="doc-meta"></div>
     <p class="hint" id="asked"></p>
     <p id="summary"></p>
+    <details open><summary>What the reviewer verified</summary><ul id="checks"></ul>
+      <p class="hint" id="scoring"></p></details>
+    <details open id="open-points-box"><summary>Open points to check before using it</summary><ul id="open-points"></ul></details>
     <details open><summary>Conflicts the agent found and how it resolved them</summary><ul id="conflicts"></ul></details>
     <details><summary>Assumptions it made for missing information</summary><ul id="assumptions"></ul></details>
     <details><summary>Key facts every section had to follow</summary><ul id="facts"></ul></details>
@@ -238,9 +241,18 @@ function renderResult(r) {
   $("download").href = r.document.download_url;
   $("download").setAttribute("download", r.document.filename);
   const rv = r.review;
+  const reviewer = Object.keys(r.llm.calls_by_agent.reviewer || {}).slice(-1)[0] || "";
+  const open = rv.remaining_issues.length;
   $("score").textContent = rv.initial_score == null ? "Review unavailable"
-    : rv.revised_sections.length ? `Self-review: ${rv.initial_score}/10 → ${rv.final_score}/10 after fixes`
-    : `Self-review: ${rv.final_score}/10`;
+    : (rv.revised_sections.length ? `Quality ${rv.initial_score}/10 → ${rv.final_score}/10 after fixes`
+                                  : `Quality ${rv.final_score}/10`)
+      + (open ? ` · ${open} open point${open > 1 ? "s" : ""}` : "");
+  $("score").title = reviewer ? `Reviewed by ${reviewer}` : "";
+  fill($("checks"), rv.checks.map((c) => c.replace(/^PASS /, "✓ ").replace(/^FAIL /, "✗ ")),
+       "No checklist available.");
+  $("scoring").textContent = `${rv.scoring} Reviewed by ${reviewer || "n/a"}. This is an automated check, not a guarantee: please verify figures before relying on them.`;
+  fill($("open-points"), rv.remaining_issues, "");
+  show("open-points-box", open > 0);
   $("doc-title").textContent = r.document.title;
   $("doc-meta").textContent = `${r.document.document_type} · ${r.document.section_count} sections · ${r.document.word_count.toLocaleString()} words · for ${r.plan.audience} · ${(r.duration_ms / 1000).toFixed(0)} s`;
   $("asked").textContent = `Your request: “${lastRequest}”`;

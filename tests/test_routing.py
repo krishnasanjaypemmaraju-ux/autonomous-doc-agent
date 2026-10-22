@@ -9,9 +9,9 @@ from app.llm.mock import MockProvider
 from app.orchestrator import DocumentAgent
 from app.schemas import Review
 from app.trace import RunTrace
-from tests.conftest import STANDARD_REQUEST, FatalLLMError, ScriptedProvider, make_settings
+from tests.conftest import STANDARD_REQUEST, FatalLLMError, ScriptedProvider, checks, make_settings
 
-VALID = json.dumps({"score": 9, "summary": "Good.", "issues": []})
+VALID = json.dumps({"checks": checks(), "summary": "Good.", "issues": []})
 
 
 class NamedMock(MockProvider):

@@ -8,9 +8,10 @@ import pytest
 from app.llm.client import LLMClient, LLMUnavailableError
 from app.schemas import Review
 from app.trace import RunTrace
-from tests.conftest import FatalLLMError, RetryableLLMError, ScriptedProvider
+from tests.conftest import FatalLLMError, RetryableLLMError, ScriptedProvider, checks
 
-VALID = json.dumps({"score": 8, "summary": "Good draft.", "issues": []})
+VALID = json.dumps({"checks": checks(), "summary": "Good draft.", "issues": [{
+    "section_id": 1, "severity": "major", "problem": "Vague owner.", "fix_instruction": "Name one."}]})
 
 
 def run(client: LLMClient, trace: RunTrace) -> Review:
@@ -21,11 +22,11 @@ def run(client: LLMClient, trace: RunTrace) -> Review:
 def test_accepts_fenced_json_with_prose():
     provider = ScriptedProvider("p1", [f"Here you go:\n```json\n{VALID}\n```"])
     review = run(LLMClient([provider]), RunTrace())
-    assert review.score == 8
+    assert review.score == 8  # computed by code: 10 - 1.5 (one major), rounded down
 
 
 def test_repairs_schema_violation_by_feeding_error_back():
-    bad = json.dumps({"score": 42, "summary": "x"})  # score out of range
+    bad = json.dumps({"score": 42, "summary": "x"})  # no checklist -> invalid
     provider = ScriptedProvider("p1", [bad, VALID])
     trace = RunTrace()
     review = run(LLMClient([provider], max_retries=2), trace)

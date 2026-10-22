@@ -6,6 +6,7 @@ caught immediately (and repaired) instead of breaking a later step.
 
 from __future__ import annotations
 
+import math
 import re
 from datetime import date
 from typing import Annotated, Any, Literal, Union
@@ -416,16 +417,69 @@ class ReviewIssue(BaseModel):
         return v if v in {"critical", "major", "minor"} else "major"
 
 
+REQUIRED_CHECKS = (
+    "coverage",          # every explicit requirement of the request is addressed
+    "money",             # amounts per budget category, summed across ALL sections
+    "dates",             # dates exist, are in order, planned items are in the future
+    "consistency",       # names, roles, numbers and choices agree with key_facts
+    "fit",               # audience, currency and tone suit who asked
+    "facts",             # real-world facts are right (e.g. a city is in the state named)
+)
+SEVERITY_PENALTY = {"critical": 3.0, "major": 1.5, "minor": 0.5}
+
+
+class ReviewCheck(BaseModel):
+    name: str
+    passed: bool
+    evidence: str = Field(default="", description="What was verified, e.g. the sums")
+
+    @field_validator("name", mode="before")
+    @classmethod
+    def _norm_name(cls, v: Any) -> str:
+        return str(v or "").strip().lower()
+
+
 class Review(BaseModel):
-    score: int = Field(ge=1, le=10)
+    """The reviewer reports checks and issues; the SCORE is computed by code from the issues.
+
+    LLM self-scores are unreliable (a weak model happily gives 10/10 to a draft with
+    double-counted money), so the model's number is ignored.
+    """
+
     summary: str = Field(min_length=3)
+    checks: list[ReviewCheck] = Field(default_factory=list)
     strengths: list[str] = Field(default_factory=list)
     issues: list[ReviewIssue] = Field(default_factory=list, max_length=8)
+    score: int = Field(default=10, ge=1, le=10)
 
     @field_validator("strengths", mode="before")
     @classmethod
     def _clean_strengths(cls, v: Any) -> list[str]:
         return _clean_text_list(v)
+
+    @field_validator("score", mode="before")
+    @classmethod
+    def _ignore_model_score(cls, v: Any) -> int:
+        return 10  # replaced below; the model's own number is not trusted
+
+    @model_validator(mode="after")
+    def _compute_score(self) -> "Review":
+        done = {c.name for c in self.checks}
+        missing = [name for name in REQUIRED_CHECKS if name not in done]
+        if missing:  # the checklist is what makes the review trustworthy
+            raise ValueError(f"checks must include: {', '.join(missing)}")
+        # A failed check must be backed by an issue, otherwise the review is inconsistent.
+        failed = [c.name for c in self.checks if not c.passed]
+        if failed and not self.issues:
+            raise ValueError(f"checks {failed} failed but no issues were reported; "
+                             "add an issue for each problem found")
+        self.rescore()
+        return self
+
+    def rescore(self) -> None:
+        """Score from the issues (call again if issues are filtered afterwards)."""
+        penalty = sum(SEVERITY_PENALTY[i.severity] for i in self.issues)
+        self.score = max(1, min(10, math.floor(10 - penalty)))
 
 
 # --------------------------------------------------------------------------- #
@@ -464,7 +518,15 @@ class ReviewReport(BaseModel):
     notes: list[str] = Field(default_factory=list)
     remaining_issues: list[str] = Field(
         default_factory=list,
-        description="Issues still open when the score stayed below the threshold",
+        description="Points the final review still flags (listed even when the score passes)",
+    )
+    checks: list[str] = Field(
+        default_factory=list,
+        description="The final review's checklist with the evidence the reviewer verified",
+    )
+    scoring: str = Field(
+        default="Computed by code from the reviewer's issues: 10 minus 3 per critical, "
+                "1.5 per major and 0.5 per minor issue, rounded down.",
     )
 
 

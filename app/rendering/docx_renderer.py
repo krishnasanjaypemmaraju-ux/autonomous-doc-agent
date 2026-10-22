@@ -139,7 +139,9 @@ def _cover(doc: DocxDocument, plan: Plan, review: ReviewReport, meta: RenderMeta
     rule.paragraph_format.space_after = Pt(24)
 
     quality = (
-        f"{review.final_score}/10 (automated self-review)"
+        f"{review.final_score}/10 (automated review"
+        + (f", {len(review.remaining_issues)} open point(s) listed in Appendix A)"
+           if review.remaining_issues else ")")
         if review.final_score is not None else "Not reviewed"
     )
     rows = [
@@ -242,12 +244,21 @@ def _appendix(doc: DocxDocument, review: ReviewReport, meta: RenderMeta) -> None
             _rich_text(doc.add_paragraph(), f"Reviewer summary: {review.summary}")
         for note in review.notes:
             _rich_text(doc.add_paragraph(), note)
+        if review.checks:
+            p = doc.add_paragraph()
+            _styled_run(p, "What the reviewer verified:", bold=True, color=PRIMARY)
+            for check in review.checks:
+                _rich_text(doc.add_paragraph(style="List Bullet"), check, size=10)
         if review.remaining_issues:
             p = doc.add_paragraph()
             _styled_run(p, "Open points the reviewer flagged - please check before sending:",
                         bold=True, color=PRIMARY)
             for issue in review.remaining_issues:
                 _rich_text(doc.add_paragraph(style="List Bullet"), issue)
+        note = doc.add_paragraph()
+        _styled_run(note, f"Scoring: {review.scoring} This is an automated review, not a "
+                          "guarantee; please verify key figures before relying on them.",
+                    size=9, italic=True, color=MUTED)
     if meta.providers:
         p = doc.add_paragraph()
         _styled_run(p, "Language models used by each agent:", size=9, bold=True, color=MUTED)

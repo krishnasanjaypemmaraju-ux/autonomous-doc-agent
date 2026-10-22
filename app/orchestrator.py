@@ -174,11 +174,12 @@ class DocumentAgent:
 
         report = self._report(initial, best_review, rounds, revised, issues_found, threshold)
         report.notes = notes
+        # Be explicit rather than ship known problems silently: any point the reviewer still
+        # sees is listed, even when the score passes.
+        report.remaining_issues = [
+            f"[{i.severity}] {titles[i.section_id]}: {i.problem}" for i in best_review.issues
+        ]
         if best_review.score < threshold:
-            # Be explicit rather than ship known problems silently.
-            report.remaining_issues = [
-                f"[{i.severity}] {titles[i.section_id]}: {i.problem}" for i in best_review.issues
-            ]
             trace.warn(f"Final quality score {best_review.score}/10 is below the {threshold}/10 "
                        "target; open points are listed in the review and the document appendix.")
         return best, report
@@ -247,6 +248,8 @@ class DocumentAgent:
             issues_found=issues_found,
             strengths=final.strengths if final else [],
             summary=final.summary if final else "Review unavailable.",
+            checks=[f"{'PASS' if c.passed else 'FAIL'} {c.name}: {c.evidence}"
+                    for c in (final.checks if final else [])],
         )
 
     # ------------------------------------------------------------------ #
@@ -330,9 +333,9 @@ def _summary(plan: Plan, report: ReviewReport, word_count: int) -> str:
         parts.append("Quality review was unavailable.")
     elif report.revised_sections:
         parts.append(
-            f"Self-review scored the draft {report.initial_score}/10; after revising "
+            f"The first draft scored {report.initial_score}/10; after revising "
             f"{len(report.revised_sections)} section(s) it scored {report.final_score}/10."
         )
     else:
-        parts.append(f"Self-review score: {report.final_score}/10.")
+        parts.append(f"Quality score: {report.final_score}/10.")
     return " ".join(parts)

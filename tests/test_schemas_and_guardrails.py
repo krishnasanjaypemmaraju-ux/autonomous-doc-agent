@@ -126,6 +126,26 @@ def test_section_with_wrong_total_is_rejected_for_repair():
                                 "rows": [["A", "100"], ["B", "200"], ["Total", "400"]]}])
 
 
+def test_review_score_is_computed_from_issues_not_claimed():
+    from pydantic import ValidationError
+
+    from app.schemas import Review
+    from tests.conftest import checks
+
+    issue = lambda sev: {"section_id": 1, "severity": sev, "problem": "p..", "fix_instruction": "f.."}  # noqa: E731
+    # The model claims 10/10 while reporting a critical and a minor issue: code says 6.
+    review = Review(score=10, summary="Looks great!", checks=checks(failed="money"),
+                    issues=[issue("critical"), issue("minor")])
+    assert review.score == 6
+    assert Review(summary="Okay.", checks=checks(), issues=[issue("major")]).score == 8
+    assert Review(summary="Okay.", checks=checks(), issues=[]).score == 10
+
+    with pytest.raises(ValidationError, match="checks must include"):
+        Review(summary="Perfect.", checks=checks()[:3], issues=[])
+    with pytest.raises(ValidationError, match="no issues were reported"):
+        Review(summary="Fine.", checks=checks(failed="money"), issues=[])
+
+
 def test_extract_json_handles_noise():
     assert extract_json('Sure! {"a": 1} hope this helps') == {"a": 1}
     with pytest.raises(ValueError):

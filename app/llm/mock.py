@@ -268,7 +268,13 @@ def _write(ctx: dict[str, Any]) -> dict[str, Any]:
     return {"blocks": blocks}
 
 
+def _checks(failed: str | None = None) -> list[dict[str, Any]]:
+    names = ("coverage", "money", "dates", "consistency", "fit", "facts")
+    return [{"name": n, "passed": n != failed, "evidence": "verified offline"} for n in names]
+
+
 def _review(ctx: dict[str, Any]) -> dict[str, Any]:
+    # The score is computed by code from the issues: one critical -> 7, one minor -> 9.
     draft = ctx.get("draft", [])
     if ctx.get("review_round", 1) == 1 and draft:
         target = next(
@@ -276,18 +282,24 @@ def _review(ctx: dict[str, Any]) -> dict[str, Any]:
             draft[-1],
         )
         return {
-            "score": 7,
+            "checks": _checks(failed="consistency"),
             "summary": "Solid structure, but some sections lack named owners and measurable deadlines.",
             "strengths": ["Logical structure", "Assumptions stated up front"],
             "issues": [{
                 "section_id": target["section_id"],
+                "severity": "critical",
                 "problem": "No accountable owner or measurable deadline.",
                 "fix_instruction": "Add a named owner, a target date and a success measure.",
             }],
         }
     return {
-        "score": 9,
+        "checks": _checks(),
         "summary": "Complete, consistent and actionable; ready to share with stakeholders.",
         "strengths": ["Covers every part of the request", "Concrete owners and dates"],
-        "issues": [],
+        "issues": [{
+            "section_id": draft[0]["section_id"] if draft else 1,
+            "severity": "minor",
+            "problem": "The opening paragraph could be one sentence shorter.",
+            "fix_instruction": "Tighten the first paragraph.",
+        }],
     }

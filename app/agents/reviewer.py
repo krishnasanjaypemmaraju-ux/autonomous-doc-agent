@@ -53,13 +53,14 @@ class ReviewerAgent:
             schema=Review,
             trace=trace,
             temperature=0.1,
-            max_tokens=1200,
+            max_tokens=2200,
             # A canned review would fake the quality score; better to report none.
             allow_offline=False,
         )
         # Drop issues pointing at sections that do not exist.
         valid_ids = {s.id for s in plan.sections}
         review.issues = [i for i in review.issues if i.section_id in valid_ids]
+        review.rescore()
         for issue in review.issues:
             issue.related_section_ids = [
                 sid for sid in dict.fromkeys(issue.related_section_ids)

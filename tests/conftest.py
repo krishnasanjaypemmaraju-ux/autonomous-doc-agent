@@ -52,3 +52,9 @@ class ScriptedProvider(ChatProvider):
 
 __all__ = ["ScriptedProvider", "FatalLLMError", "RetryableLLMError", "make_settings",
            "STANDARD_REQUEST", "COMPLEX_REQUEST"]
+
+
+def checks(failed: str | None = None) -> list[dict]:
+    """A complete reviewer checklist (the Review schema requires all five checks)."""
+    return [{"name": n, "passed": n != failed, "evidence": "test"}
+            for n in ("coverage", "money", "dates", "consistency", "fit", "facts")]

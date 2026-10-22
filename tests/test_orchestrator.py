@@ -9,7 +9,7 @@ from docx import Document
 from app.llm import LLMClient, LLMUnavailableError
 from app.llm.mock import MockProvider
 from app.orchestrator import DocumentAgent
-from tests.conftest import STANDARD_REQUEST, ScriptedProvider, make_settings
+from tests.conftest import STANDARD_REQUEST, ScriptedProvider, checks, make_settings
 
 
 class FailingWriterProvider(MockProvider):
@@ -31,7 +31,9 @@ class ScoreDropReviewerProvider(MockProvider):
     async def chat(self, messages, **kwargs):
         reply = await super().chat(messages, **kwargs)
         if "AGENT: REVIEWER" in messages[0]["content"] and '"review_round": 2' in messages[1]["content"]:
-            return json.dumps({"score": 5, "summary": "Worse.", "issues": []})
+            return json.dumps({"checks": checks(failed="money"), "summary": "Worse.", "issues": [
+                {"section_id": 1, "severity": "critical", "problem": "Totals wrong.", "fix_instruction": "Fix."},
+                {"section_id": 2, "severity": "major", "problem": "Vague.", "fix_instruction": "Fix."}]})  # 10-4.5 -> 5
         return reply
 
 
@@ -42,7 +44,7 @@ class CrossSectionIssueProvider(MockProvider):
 
     async def chat(self, messages, **kwargs):
         if "AGENT: REVIEWER" in messages[0]["content"] and '"review_round": 1' in messages[1]["content"]:
-            return json.dumps({"score": 6, "summary": "Dates disagree.", "issues": [{
+            return json.dumps({"checks": checks(failed="dates"), "summary": "Dates disagree.", "issues": [{
                 "section_id": 1, "related_section_ids": [3, 99, 1], "severity": "major",
                 "problem": "Completion year differs between sections 1 and 3.",
                 "fix_instruction": "Use 2027-02-28 everywhere."}]})
@@ -64,7 +66,7 @@ class PassingScoreWithMajorIssueProvider(MockProvider):
 
     async def chat(self, messages, **kwargs):
         if "AGENT: REVIEWER" in messages[0]["content"] and '"review_round": 1' in messages[1]["content"]:
-            return json.dumps({"score": 9, "summary": "Good, one contradiction.", "issues": [{
+            return json.dumps({"checks": checks(failed="consistency"), "summary": "Good, one contradiction.", "issues": [{
                 "section_id": 2, "severity": "major",
                 "problem": "Says 4 hotel nights; the rest of the plan says 7.",
                 "fix_instruction": "Use 7 nights."}]})

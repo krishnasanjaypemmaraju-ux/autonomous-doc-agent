@@ -1,5 +1,7 @@
 # Autonomous Document Agent
 
+[![tests](https://github.com/krishnasanjaypemmaraju-ux/autonomous-doc-agent/actions/workflows/tests.yml/badge.svg)](https://github.com/krishnasanjaypemmaraju-ux/autonomous-doc-agent/actions/workflows/tests.yml)
+
 A multi-agent, multi-model system that turns one sentence into a finished, professionally
 formatted Microsoft Word document. It decides **what** document to write, **plans its own
 task list**, writes the sections in parallel, **reviews its own work and fixes it**, and
@@ -82,9 +84,15 @@ skipping part of the request or contradicting itself ("budget $20k" in one secti
 in another). A single-pass generator can't see this; a separate reviewer with the original
 request in hand can.
 
-**Measured effect (real runs):** 7/10 → 9/10 on the standard request (names in the
-timeline didn't match the RACI; 3 related sections fixed together), 5/10 → 9/10 on the
-complex request.
+**The score is computed by code, not claimed by the model.** The reviewer must report six
+checks (coverage, money per category across all sections, dates, consistency, fit, real-world
+facts) with the evidence it verified; the score is 10 minus 3 per critical, 1.5 per major and
+0.5 per minor issue, rounded down. Any point still open is listed in the response and the
+document appendix.
+
+**Measured effect (real runs):** a construction estimate went 7/10 → 10/10 after the
+reviewer caught masonry costed at ₹45 lakh in one section and ₹8 lakh in another; a day-trip
+plan went 8/10 → 10/10 after a schedule overlap was fixed.
 
 ### Supporting reliability features
 - **Multi-model routing and load balancing:** six free models across two providers; each agent has its own model pool; writers
@@ -225,7 +233,7 @@ python scripts/demo.py family_trip     # just one
 pytest -q
 ```
 
-66 tests, fully offline (no API calls): end-to-end API runs, background jobs, the web page, the reflection loop, cross-section
+68 tests, fully offline (no API calls): end-to-end API runs, background jobs, the web page, the reflection loop, cross-section
 fixes, discarding a revision that lowers the score, placeholder recovery, retry / cooldown /
 fallback / JSON self-repair, per-agent routing and load balancing, token accounting, the
 HTTP provider against a simulated server (429 + Retry-After, daily quota,
