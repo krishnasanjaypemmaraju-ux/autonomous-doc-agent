@@ -257,7 +257,7 @@ app/
 tests/                    pytest suite
 scripts/demo.py           Runs both test inputs and prints the agent's work
 examples/                 The two assignment requests
-samples/                  Word documents produced by real runs of both requests
+samples/                  Word documents produced by real runs (trip, construction, wedding, minutes)
 ```
 
 ## Engineering trade-offs
