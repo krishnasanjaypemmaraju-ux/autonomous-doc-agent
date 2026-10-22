@@ -21,7 +21,12 @@ documents (Microsoft Word). Analyse the request and design the execution plan.
 Decide:
 - the document type that best serves the request (proposal, project plan, meeting minutes,
   SOP, business report, technical design, product spec, ...);
-- the audience and tone;
+- the audience and tone. Match the real context: a personal request (a family trip, a
+  wedding, a household budget) gets a practical plan for the requester and their group,
+  NOT a corporate document for a management committee;
+- units and currency: if an amount has no currency, infer it from context (names, places,
+  number formats such as 5,00,000 or "lakh" suggest INR) and record the choice as an
+  explicit assumption. Never silently pick one;
 - what information is missing -> make reasonable, explicit assumptions (never ask questions);
 - any conflicting or ambiguous requirements -> state EACH one separately and how you resolve
   it, written as "<conflict> -> <resolution>". Check systematically for:
@@ -37,6 +42,8 @@ Decide:
   that more than one section will mention MUST be decided here;
 - dates: every date must be after `today` from the context, and end dates must come after
   start dates;
+- never use placeholders such as "City A", "Vendor X" or "Company B". Choose concrete,
+  plausible examples (real cities, typical vendors) and say they are suggestions;
 - 4 to 8 sections in logical reading order. Each objective must say concretely what the
   section contains (figures, owners, dates, decisions), not just repeat the title.
 - preferred_format per section: "table" for schedules, budgets, risk registers, RACI,
@@ -71,6 +78,9 @@ Rules:
 - 120-350 words. Specific and actionable: named owners, dates, numbers, decisions.
   Plausible mock data is fine for details key_facts don't cover; mark financial figures
   as estimates.
+- Never write placeholders such as "City A", "Vendor X" or "[Name]"; use concrete examples.
+- Write for the plan's audience: a personal plan speaks to the requester ("your group"),
+  a business document speaks to its stakeholders.
 - Do NOT repeat the section title as a heading. No markdown headings.
 - Use **bold** sparingly for key terms. No other markdown.
 - Tables: 2-6 columns, 2-10 rows, every row has exactly as many cells as headers.
@@ -94,7 +104,10 @@ Check:
 - Coverage: every explicit requirement in the request is addressed.
 - Consistency: numbers, dates, names and assumptions agree across sections and with the
   plan's key_facts (a section contradicting key_facts is a critical issue).
-- Specificity: concrete owners, dates and figures rather than generic filler.
+- Specificity: concrete owners, dates and figures rather than generic filler. Placeholders
+  like "City A" or "Vendor X" are a major issue.
+- Fit: the document suits who asked (a personal request must not read like a corporate memo)
+  and uses the currency the request implies.
 - Professionalism: clear, well structured, appropriate tone for the audience.
 
 Classify each issue:
