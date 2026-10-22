@@ -93,7 +93,8 @@ complex request.
   `calls_by_agent` and `tokens_by_model`.
 - **Rate-limit cooldowns:** a model that returns 429 is put in cooldown (using the
   provider's `Retry-After` or Gemini's `retryDelay`) and the call moves *immediately* to a
-  model that's ready, instead of sleeping. Daily-quota errors rest a model for an hour.
+  model that's ready, instead of sleeping. A model whose daily quota is used up rests until
+  the provider says it recovers (or an hour), and the work continues on the others.
 - **Shared key-facts sheet:** the planner fixes budget figures, dates, owners and choices
   once; all parallel writers must use them, which removes most cross-section contradictions.
 - **Deterministic fact checks:** code verifies what LLMs get wrong (impossible dates such as
