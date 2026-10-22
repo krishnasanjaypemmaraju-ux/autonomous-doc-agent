@@ -1,0 +1,9 @@
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+.env
+outputs/*
+!outputs/.gitkeep
+*.log
+docs/VIDEO_SCRIPT.md
