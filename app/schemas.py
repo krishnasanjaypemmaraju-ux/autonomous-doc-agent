@@ -353,3 +353,23 @@ class HealthResponse(BaseModel):
 class ErrorResponse(BaseModel):
     error: str
     detail: str
+
+
+class JobCreated(BaseModel):
+    job_id: str
+    status_url: str = Field(description="Poll this URL to follow progress and get the result")
+
+
+class JobStatus(BaseModel):
+    job_id: str
+    status: Literal["running", "completed", "failed"]
+    todo: list[TodoItem] = Field(description="The agent's live task list")
+    result: AgentResponse | None = None
+    error: ErrorResponse | None = None
+
+
+class DocumentListItem(BaseModel):
+    filename: str
+    download_url: str
+    size_kb: float
+    created_at: str

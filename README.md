@@ -133,21 +133,24 @@ Which model serves which agent is configurable in `.env` (`PLANNER_MODELS`,
 uvicorn app.main:app --reload
 ```
 
-Open **http://localhost:8000/docs**, then use `POST /agent` → *Try it out*.
+Then use whichever is easiest:
 
-Or run both assignment test inputs from the terminal (no server needed):
-
-```bash
-python scripts/demo.py
-```
+| Open | What you get |
+|---|---|
+| **http://localhost:8000** | A guided page: type a request (or click an example) → **Generate** → watch the agent's task list update live → **Download Word file**. No file names to copy. |
+| **http://localhost:8000/docs** | Interactive API docs with a how-to at the top. `POST /agent` → *Try it out* → *Execute*, then open `download_url`. |
+| `python scripts/demo.py` | Runs both assignment test inputs from the terminal (no server needed). |
 
 ### API
 
 | Method | Path | Description |
 |---|---|---|
-| `POST` | `/agent` | Body `{"request": "..."}`. Returns the JSON report. Add `?return_file=true` to get the `.docx` directly. |
-| `GET` | `/documents/{filename}` | Download a generated document |
-| `GET` | `/health` | Status, the LLM fallback chain, and which models each agent uses |
+| `POST` | `/agent` | **The assignment endpoint.** Body `{"request": "..."}`. Waits for the run and returns the JSON report. Add `?return_file=true` to get the `.docx` directly. |
+| `POST` | `/jobs` | Same pipeline in the background: returns a `job_id` immediately (202). |
+| `GET` | `/jobs/{job_id}` | The agent's live task list, then the same result as `/agent` when finished. |
+| `GET` | `/documents` | Every generated document, newest first, with download links. |
+| `GET` | `/documents/{filename}` | Download a generated document. |
+| `GET` | `/health` | Status, the LLM fallback chain, and which models each agent uses. |
 
 ```bash
 curl -X POST http://localhost:8000/agent -H "Content-Type: application/json" -d @examples/standard_request.json
@@ -197,7 +200,7 @@ Response (abridged; per-model numbers are illustrative):
 pytest -q
 ```
 
-44 tests, fully offline (no API calls): end-to-end API runs, the reflection loop, cross-section
+54 tests, fully offline (no API calls): end-to-end API runs, background jobs, the web page, the reflection loop, cross-section
 fixes, discarding a revision that lowers the score, placeholder recovery, retry / cooldown /
 fallback / JSON self-repair, per-agent routing and load balancing, token accounting, the
 HTTP provider against a simulated server (429 + Retry-After, daily quota,
@@ -208,6 +211,8 @@ HTTP provider against a simulated server (429 + Retry-After, daily quota,
 ```
 app/
   main.py                 FastAPI app, routes, error handlers
+  jobs.py                 Background jobs with a live task list
+  static/index.html       Guided web page (no build step, no external assets)
   orchestrator.py         Planner -> Writers -> Reviewer -> Renderer, live TODO list
   agents/                 planner.py, writer.py, reviewer.py, prompts.py
   llm/                    client.py (routing, cooldowns, retry, repair, fallback),

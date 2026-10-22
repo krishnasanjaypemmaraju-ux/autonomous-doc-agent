@@ -1,0 +1,250 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Autonomous Document Agent</title>
+<style>
+  :root {
+    --bg: #f4f6fa; --card: #ffffff; --text: #1c2430; --muted: #5d6878; --line: #e3e8ef;
+    --primary: #1f3a5f; --accent: #2e75b6; --accent-soft: #eaf1fb;
+    --ok: #1e8a4c; --ok-soft: #e7f6ee; --warn: #b26a00; --bad: #c0392b; --bad-soft: #fdecea;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #12161d; --card: #1b212b; --text: #e6eaf0; --muted: #9aa5b5; --line: #2c3442;
+      --primary: #9cc3f0; --accent: #5aa0e6; --accent-soft: #1f2d40;
+      --ok: #4cc27f; --ok-soft: #173326; --warn: #e0a440; --bad: #ef6f62; --bad-soft: #3a1f1d;
+    }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text);
+         font: 15px/1.5 "Segoe UI", system-ui, -apple-system, Roboto, sans-serif; }
+  main { max-width: 880px; margin: 0 auto; padding: 32px 16px 64px; }
+  header { display: flex; justify-content: space-between; align-items: flex-start; gap: 16px;
+           flex-wrap: wrap; margin-bottom: 24px; }
+  h1 { margin: 0; font-size: 26px; color: var(--primary); }
+  .tagline { margin: 4px 0 0; color: var(--muted); }
+  .links a { color: var(--accent); text-decoration: none; margin-left: 16px; font-weight: 600; }
+  .steps { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-bottom: 24px; }
+  .step { background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 14px; }
+  .step b { display: inline-flex; align-items: center; justify-content: center; width: 24px;
+            height: 24px; border-radius: 50%; background: var(--accent); color: #fff;
+            font-size: 13px; margin-right: 8px; }
+  .step p { margin: 6px 0 0; color: var(--muted); font-size: 13.5px; }
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: 12px;
+          padding: 20px; margin-bottom: 18px; }
+  .card h2 { margin: 0 0 12px; font-size: 17px; color: var(--primary); }
+  textarea { width: 100%; min-height: 120px; resize: vertical; padding: 12px; border-radius: 8px;
+             border: 1px solid var(--line); background: var(--bg); color: var(--text);
+             font: inherit; }
+  textarea:focus { outline: 2px solid var(--accent); border-color: transparent; }
+  .row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin-top: 10px; }
+  .chip { border: 1px solid var(--line); background: var(--accent-soft); color: var(--accent);
+          border-radius: 999px; padding: 5px 12px; cursor: pointer; font: inherit; font-size: 13px; }
+  .spacer { flex: 1; }
+  button.primary, a.primary { background: var(--accent); color: #fff; border: 0; border-radius: 8px;
+          padding: 11px 22px; font: inherit; font-weight: 600; cursor: pointer; text-decoration: none;
+          display: inline-block; }
+  button.primary:disabled { opacity: .55; cursor: wait; }
+  a.download { background: var(--ok); font-size: 16px; padding: 13px 26px; }
+  .hint { color: var(--muted); font-size: 13px; }
+  .hidden { display: none; }
+  ol.todo { list-style: none; margin: 0; padding: 0; }
+  ol.todo li { display: grid; grid-template-columns: 26px 1fr auto; gap: 8px; padding: 7px 0;
+               border-bottom: 1px solid var(--line); align-items: start; }
+  ol.todo li:last-child { border-bottom: 0; }
+  .icon { font-weight: 700; text-align: center; }
+  .done .icon { color: var(--ok); } .failed .icon { color: var(--bad); }
+  .skipped .icon { color: var(--muted); } .in_progress .icon { color: var(--accent); }
+  .pending { color: var(--muted); }
+  .detail { display: block; color: var(--muted); font-size: 12.5px; }
+  .badge { font-size: 11.5px; padding: 2px 8px; border-radius: 999px; background: var(--accent-soft);
+           color: var(--accent); white-space: nowrap; }
+  .spin { display: inline-block; animation: spin 1s linear infinite; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .result-head { display: flex; gap: 16px; align-items: center; flex-wrap: wrap; }
+  .score { font-size: 15px; background: var(--ok-soft); color: var(--ok); border-radius: 8px;
+           padding: 8px 12px; font-weight: 600; }
+  .doc-title { font-size: 19px; font-weight: 700; margin: 14px 0 2px; }
+  details { border-top: 1px solid var(--line); padding: 10px 0; }
+  summary { cursor: pointer; font-weight: 600; }
+  details ul { margin: 8px 0 0; padding-left: 20px; }
+  .error { background: var(--bad-soft); color: var(--bad); border-color: transparent; }
+  table { width: 100%; border-collapse: collapse; font-size: 14px; }
+  td { padding: 7px 4px; border-bottom: 1px solid var(--line); }
+  td a { color: var(--accent); font-weight: 600; text-decoration: none; }
+  @media (max-width: 640px) { .steps { grid-template-columns: 1fr; } }
+</style>
+</head>
+<body>
+<main>
+  <header>
+    <div>
+      <h1>Autonomous Document Agent</h1>
+      <p class="tagline">Describe a business document in one sentence. A team of AI agents plans it,
+        writes it, checks it, fixes it, and hands you a Word file.</p>
+    </div>
+    <nav class="links"><a href="/docs">API docs</a><a href="/health" target="_blank">Health</a></nav>
+  </header>
+
+  <section class="steps" aria-label="How to use">
+    <div class="step"><b>1</b>Describe it<p>Type what you need, or click an example.</p></div>
+    <div class="step"><b>2</b>Watch the agent<p>See its task list as it plans, writes and self-reviews.</p></div>
+    <div class="step"><b>3</b>Download<p>Click the green button to get your Word document.</p></div>
+  </section>
+
+  <section class="card">
+    <h2>Step 1 &mdash; What document do you need?</h2>
+    <label for="req" class="hint">For example a project plan, proposal, meeting minutes, SOP, report or spec.</label>
+    <textarea id="req" maxlength="4000"
+      placeholder="e.g. Write a project plan to migrate our CRM to Salesforce within 4 months. Team of 5 engineers, budget $120,000."></textarea>
+    <div class="row">
+      <button class="chip" data-example="standard">Example: clear project plan</button>
+      <button class="chip" data-example="complex">Example: messy, conflicting request</button>
+      <span class="spacer"></span>
+      <button id="go" class="primary">Generate document</button>
+    </div>
+  </section>
+
+  <section id="error" class="card error hidden" role="alert"></section>
+
+  <section id="progress" class="card hidden" aria-live="polite">
+    <h2 id="progress-title">Step 2 &mdash; The agent is working</h2>
+    <p class="hint" id="elapsed"></p>
+    <ol class="todo" id="todo"></ol>
+  </section>
+
+  <section id="result" class="card hidden">
+    <h2>Step 3 &mdash; Your document is ready</h2>
+    <div class="result-head">
+      <a id="download" class="primary download" href="#">&#11015; Download Word file</a>
+      <span id="score" class="score"></span>
+    </div>
+    <div class="doc-title" id="doc-title"></div>
+    <div class="hint" id="doc-meta"></div>
+    <p id="summary"></p>
+    <details open><summary>Conflicts the agent found and how it resolved them</summary><ul id="conflicts"></ul></details>
+    <details><summary>Assumptions it made for missing information</summary><ul id="assumptions"></ul></details>
+    <details><summary>Key facts every section had to follow</summary><ul id="facts"></ul></details>
+    <details><summary>Which AI model did which job</summary><ul id="models"></ul></details>
+  </section>
+
+  <section class="card">
+    <h2>Recent documents</h2>
+    <table><tbody id="docs"><tr><td class="hint">Loading&hellip;</td></tr></tbody></table>
+  </section>
+</main>
+
+<script>
+const EXAMPLES = {
+  standard: "Write a project plan to migrate our on-premise CRM to Salesforce within 4 months. Team of 5 engineers, budget $120,000. Include timeline, milestones, risks and who is responsible for what.",
+  complex: "We need something for the board next week about moving to AI customer support - short but cover everything: costs, risks, vendors and rollout. Budget is tight, under $20k, but leadership wants 24/7 coverage in 12 languages from day one. Not sure if this should be a proposal or a report."
+};
+const ICON = { done: "✓", failed: "✗", skipped: "–", pending: "○", in_progress: "↻" };
+const $ = (id) => document.getElementById(id);
+let timer = null, started = 0;
+
+document.querySelectorAll("[data-example]").forEach((b) =>
+  b.addEventListener("click", () => { $("req").value = EXAMPLES[b.dataset.example]; $("req").focus(); }));
+$("go").addEventListener("click", start);
+$("req").addEventListener("keydown", (e) => { if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) start(); });
+
+function show(id, on) { $(id).classList.toggle("hidden", !on); }
+function fill(ul, items, empty) {
+  ul.replaceChildren();
+  (items.length ? items : [empty]).forEach((text) => {
+    const li = document.createElement("li"); li.textContent = text.replace("->", "→"); ul.append(li);
+  });
+}
+
+async function start() {
+  const request = $("req").value.trim();
+  show("error", false); show("result", false);
+  if (!request) { return fail("Please describe the document you need first."); }
+  $("go").disabled = true; $("go").textContent = "Working…";
+  try {
+    const res = await fetch("/jobs", { method: "POST", headers: { "Content-Type": "application/json" },
+                                       body: JSON.stringify({ request }) });
+    const body = await res.json();
+    if (!res.ok) { return fail(body.detail?.[0]?.msg || body.detail || "Request rejected."); }
+    started = Date.now(); $("todo").replaceChildren(); show("progress", true);
+    $("progress-title").textContent = "Step 2 — The agent is working";
+    poll(body.job_id);
+  } catch (e) { fail("Could not reach the server. Is it still running?"); }
+}
+
+async function poll(jobId) {
+  clearTimeout(timer);
+  try {
+    const job = await (await fetch(`/jobs/${jobId}`)).json();
+    renderTodo(job.todo);
+    $("elapsed").textContent = `${Math.round((Date.now() - started) / 1000)} s elapsed · the agent adds tasks to this list as it decides what to do`;
+    if (job.status === "running") { timer = setTimeout(() => poll(jobId), 800); return; }
+    if (job.status === "failed") { return fail(job.error?.detail || "The agent could not finish."); }
+    $("progress-title").textContent = "Step 2 — Done. Here is everything the agent did:";
+    renderResult(job.result); reset(); loadDocs();
+  } catch (e) { timer = setTimeout(() => poll(jobId), 1500); }
+}
+
+function renderTodo(todo) {
+  $("todo").replaceChildren(...todo.map((t) => {
+    const li = document.createElement("li"); li.className = t.status;
+    const icon = document.createElement("span"); icon.className = "icon" + (t.status === "in_progress" ? " spin" : "");
+    icon.textContent = ICON[t.status] || "?";
+    const text = document.createElement("span"); text.textContent = t.title;
+    if (t.detail) { const d = document.createElement("span"); d.className = "detail"; d.textContent = t.detail; text.append(d); }
+    const badge = document.createElement("span"); badge.className = "badge"; badge.textContent = t.agent;
+    li.append(icon, text, badge); return li;
+  }));
+}
+
+function renderResult(r) {
+  $("download").href = r.document.download_url;
+  $("download").setAttribute("download", r.document.filename);
+  const rv = r.review;
+  $("score").textContent = rv.initial_score == null ? "Review unavailable"
+    : rv.revised_sections.length ? `Self-review: ${rv.initial_score}/10 → ${rv.final_score}/10 after fixes`
+    : `Self-review: ${rv.final_score}/10`;
+  $("doc-title").textContent = r.document.title;
+  $("doc-meta").textContent = `${r.document.document_type} · ${r.document.section_count} sections · ${r.document.word_count.toLocaleString()} words · for ${r.plan.audience} · ${(r.duration_ms / 1000).toFixed(0)} s`;
+  $("summary").textContent = r.summary + (r.warnings.length ? "  Note: " + r.warnings.join(" ") : "");
+  fill($("conflicts"), r.plan.conflicts_resolved, "No conflicting requirements found.");
+  fill($("assumptions"), r.plan.assumptions, "No assumptions were needed.");
+  fill($("facts"), r.plan.key_facts, "No key facts recorded.");
+  const models = Object.entries(r.llm.calls_by_agent).map(([agent, m]) =>
+    `${agent}: ` + Object.entries(m).map(([name, n]) => `${name} ×${n}`).join(", "));
+  models.push(`Total: ${r.llm.calls} calls, ${r.llm.total_tokens.toLocaleString()} tokens, ${r.llm.retries} rate-limit retries`);
+  fill($("models"), models, "");
+  show("result", true);
+  $("result").scrollIntoView({ behavior: "smooth", block: "start" });
+}
+
+function fail(message) {
+  $("error").textContent = message; show("error", true); reset();
+}
+function reset() { $("go").disabled = false; $("go").textContent = "Generate document"; }
+
+async function loadDocs() {
+  try {
+    const docs = await (await fetch("/documents?limit=10")).json();
+    const rows = docs.map((d) => {
+      const tr = document.createElement("tr");
+      const name = document.createElement("td"); const a = document.createElement("a");
+      a.href = d.download_url; a.textContent = d.filename; a.setAttribute("download", d.filename); name.append(a);
+      const when = document.createElement("td"); when.className = "hint";
+      when.textContent = `${d.created_at.replace("T", " ")} · ${d.size_kb} KB`;
+      tr.append(name, when); return tr;
+    });
+    if (!rows.length) {
+      const tr = document.createElement("tr"); const td = document.createElement("td");
+      td.className = "hint"; td.textContent = "No documents yet — generate your first one above.";
+      tr.append(td); rows.push(tr);
+    }
+    $("docs").replaceChildren(...rows);
+  } catch (e) { /* the list is a convenience; ignore */ }
+}
+loadDocs();
+</script>
+</body>
+</html>

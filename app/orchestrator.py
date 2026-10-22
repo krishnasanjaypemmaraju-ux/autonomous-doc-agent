@@ -42,8 +42,9 @@ class DocumentAgent:
         self.writer = WriterAgent(llm)
         self.reviewer = ReviewerAgent(llm)
 
-    async def run(self, raw_request: str) -> AgentResponse:
-        trace = RunTrace()
+    async def run(self, raw_request: str, trace: RunTrace | None = None) -> AgentResponse:
+        """Run the full pipeline. Pass a trace to watch its TODO list update live."""
+        trace = trace or RunTrace()
 
         # 1. Guardrails (raises GuardrailViolation -> HTTP 422)
         guard = trace.add_task("Validate request and apply guardrails", "guardrails")
